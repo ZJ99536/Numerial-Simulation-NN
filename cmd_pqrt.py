@@ -49,7 +49,7 @@ class DroneControlSim:
                           [cos(phi)*sin(theta)*cos(psi)+sin(phi)*sin(psi),cos(phi)*sin(theta)*sin(psi)-sin(phi)*cos(psi),cos(phi)*cos(theta)]])
 
         d_position = np.array([vx,vy,vz])
-        d_velocity = np.array([.0,.0,self.g]) + R_E_B.transpose()@np.array([.0,.0,T])/self.m
+        d_velocity = R_E_B.transpose()@np.array([.0,.0,T])/self.m
         d_angle = R_d_angle@np.array([p,q,r])
         d_q = np.linalg.inv(self.I)@(M-np.cross(np.array([p,q,r]),self.I@np.array([p,q,r])))
 
