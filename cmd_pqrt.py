@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin,cos,tan
+from math import sin,cos,tan,atan,atan2,asin
 from tensorflow import keras
 
 class DroneControlSim:
@@ -59,10 +59,10 @@ class DroneControlSim:
         return dx 
 
     def run(self):
-        waypoint0 = np.array([0.0, 1.0, 1.2])
+        waypoint0 = np.array([0.0, 1.0, 1.5])
         waypoint1 = np.array([2.0, 0.0, 1.0])
-        model = keras.models.load_model('/home/zhoujin/learning/model/quad5_m5.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
-        # model = keras.models.load_model('/home/zhoujin/learning/model/quad3_t3.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
+        # model = keras.models.load_model('/home/zhoujin/learning/model/quad5_m5.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
+        model = keras.models.load_model('/home/zhoujin/learning/model/quad3_t3.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
         last_velocity = np.zeros(3)
         for self.pointer in range(self.drone_states.shape[0]-1):
             input = np.zeros(15)
@@ -91,16 +91,25 @@ class DroneControlSim:
             self.position_cmd[self.pointer] = [x_cmd, y_cmd, z_cmd]
             self.velocity_cmd[self.pointer] = [output[0, 6], output[0, 7], output[0, 8]]
             
-            # self.attitude_cmd[self.pointer] = [output[0, 9], output[0, 10], output[0, 11]]
+            acc_des = np.array([output[0, 9], output[0, 10], output[0, 11]])
+            psi = 0
+            z_b_des = np.array(acc_des / np.linalg.norm(acc_des))
+            y_c = np.array([-sin(psi),cos(psi),0])
+            x_b_des = np.cross(y_c,z_b_des) / np.linalg.norm(np.cross(y_c,z_b_des))
+            y_b_des = np.cross(z_b_des,x_b_des)
+            R_E_B = np.transpose(np.array([x_b_des,y_b_des,z_b_des]))
+            psi_cmd = atan2(R_E_B[1,0],R_E_B[0,0])
+            theta_cmd = asin(-R_E_B[2,0])
+            phi_cmd = atan(R_E_B[2,1]/R_E_B[2,2])
+            self.attitude_cmd[self.pointer] = [phi_cmd, theta_cmd, psi_cmd]
 
-            #self.attitude_cmd[self.pointer] = [1,0,0]
             self.rate_cmd[self.pointer] = [output[0, 12], output[0, 13], output[0, 14]]
             thrust_cmd = 0
             for i in range(3):
                 thrust_cmd += output[0, i+9] ** 2
             thrust_cmd = thrust_cmd ** 0.5
             # self.rate_cmd[self.pointer] = [1,0,0]
-            self.attitude_cmd[self.pointer] = [output[0, 9], output[0, 10], thrust_cmd]
+            # self.attitude_cmd[self.pointer] = [output[0, 9], output[0, 10], thrust_cmd]
             # self.attitude_cmd[self.pointer] = [input[9], input[10], input[11]]
 
             M = self.rate_controller(self.rate_cmd[self.pointer])
@@ -111,9 +120,9 @@ class DroneControlSim:
 
 
     def rate_controller(self,cmd):
-        kp_p = 0.1 
-        kp_q = 0.1
-        kp_r = 0.2
+        kp_p = 0.08
+        kp_q = 0.07
+        kp_r = 0.07
         error = cmd - self.drone_states[self.pointer,9:12]
         return np.array([kp_p*error[0],kp_q*error[1],kp_r*error[2]])
 
