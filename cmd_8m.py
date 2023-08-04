@@ -5,12 +5,13 @@ from tensorflow import keras
 
 class DroneControlSim:
     def __init__(self):
-        self.sim_time = 5.0
-        self.sim_step = 0.03
+        self.sim_time = 2.5
+        self.sim_step = 0.033
         self.drone_states = np.zeros((int(self.sim_time/self.sim_step), 12))
-        self.drone_states[0, 0] = -2.0
+        self.drone_states[0, 0] = 4.0
         self.drone_states[0, 1] = 0.0
         self.drone_states[0, 2] = 1.0
+        self.status = 0
         self.time= np.zeros((int(self.sim_time/self.sim_step),))
         self.rate_cmd = np.zeros((int(self.sim_time/self.sim_step), 3)) 
         self.attitude_cmd = np.zeros((int(self.sim_time/self.sim_step), 3)) 
@@ -59,24 +60,39 @@ class DroneControlSim:
         return dx 
 
     def run(self):
-        waypoint0 = np.array([0.0, 1.0, 1.5])
-        waypoint1 = np.array([2.0, 0.0, 1.0])
+        
         # model = keras.models.load_model('/home/zhoujin/learning/model/quad5_m5.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
-        model = keras.models.load_model('/home/zhoujin/learning/model/quad5_t3.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
+        # model = keras.models.load_model('/home/zhoujin/learning/model/quad4_75t2.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
+        model = keras.models.load_model('/home/zhoujin/learning/model/quad2_8m.h5') # quad5 m4 m6(softplus 64) m5(softplus 640)
         last_velocity = np.zeros(3)
-        for self.pointer in range(self.drone_states.shape[0]-1):
+        for self.pointer in range(self.drone_states.shape[0]-1):      
             input = np.zeros(15)
-            current_position = np.array([self.drone_states[self.pointer, 0], self.drone_states[self.pointer, 1], self.drone_states[self.pointer, 2]])
-            current_velocity = np.array([self.drone_states[self.pointer, 3], self.drone_states[self.pointer, 4], self.drone_states[self.pointer, 5]])
+            t = self.pointer
+            if t > 2:
+                t -= 2
+            else:
+                t = 0
+            current_position = np.array([self.drone_states[t, 0], self.drone_states[t, 1], self.drone_states[t, 2]])
+            current_velocity = np.array([self.drone_states[t, 3], self.drone_states[t, 4], self.drone_states[t, 5]])
+            if self.status == 0 :
+                waypoint0 = np.array([0.0, 0.5, 1.4])
+                waypoint1 = np.array([-4.0, 0.0, 1.0])
+                error = waypoint1 - current_position
+                if error[0]**2 + error[1]**2 + error[2]**2 < 0.04:
+                    self.status = 0
+            if self.status == 1 :
+                waypoint0 = np.array([0.0, -0.5, 1.4])
+                waypoint1 = np.array([4.0, 0.0, 1.0])
+            
             error0 = waypoint0 - current_position
             error1 = waypoint1 - current_position
             
             for i in range(3):
                 input[i] = error0[i]
                 input[i+3] = error1[i]
-                input[i+6] = self.drone_states[self.pointer, i+3]
+                input[i+6] = self.drone_states[t, i+3]
                 input[i+9] = (current_velocity[i] - last_velocity[i]) / self.sim_step
-                input[i+12] = self.drone_states[self.pointer, i+9]
+                input[i+12] = self.drone_states[t, i+9]
             input[11] += 9.81
             last_velocity = current_velocity
             output = model(input.reshape(-1,15))
@@ -120,9 +136,9 @@ class DroneControlSim:
 
 
     def rate_controller(self,cmd):
-        kp_p = 0.08
-        kp_q = 0.07
-        kp_r = 0.07
+        kp_p = 0.085
+        kp_q = 0.075
+        kp_r = 0.09
         error = cmd - self.drone_states[self.pointer,9:12]
         return np.array([kp_p*error[0],kp_q*error[1],kp_r*error[2]])
 
